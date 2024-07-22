@@ -31,21 +31,18 @@ if (json_last_error() !== JSON_ERROR_NONE) {
 
 $country = '';
 $devise = '';
-
-// FONCTION POUR CALCULER LE TAUX
-function calculerTaux($money1,$taux){
-    $money2 = $money1 * $taux;
-    return $money2;
-}
+$money = '';
 
 
 //RECUPERER LES DONNEES DU FORMULAIRE
 if (isset($_POST['country']) && isset($_POST['money'])){
     $country = $_POST['country'];
     $money = $_POST['money'];
+    $money = floatval($money);
 } else {
     $erreurEncodage = "Veuillez encoder un pays et une somme en euros";
 }
+
 
 //RECUPERER LA DATABASE MYSQL
 try {$bdd = new PDO('mysql:host=localhost;dbname=thedream;charset=utf8','root', '');
@@ -64,7 +61,21 @@ $requete -> execute(array($country, $country));
 
 while($donnees = $requete->fetch()){
     $devise = $donnees['codeDevise'];
-    // echo '<p> La devise pour '.$country.' est la suivante : '.$devise.'</p>';
+}
+
+$taux = null;
+if(isset($data_array['rates'][$devise])){
+    $taux = floatval($data_array['rates'][$devise]['rate']);
+} else {
+    $taux = null;
+}
+
+$valeur_convertie = null;
+
+if($taux !== null){
+    $valeur_convertie = $money * $taux;
+} else {
+    $erreur_impossible = "impossible de calculer la valeur convertie";
 }
 
 ?>
@@ -96,9 +107,17 @@ while($donnees = $requete->fetch()){
                 </tr>
                 <tr>
                     <td><button type="submit">Convertir</button></td>
+
                     <td>
-                        <?php
-                            echo '<p> La devise pour '.$country.' est la suivante : '.$devise.'</p>';
+                    <?php
+                        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                            if ($taux !== null && $valeur_convertie !== null) {
+                                echo 'Le taux de conversion est de : ' . htmlspecialchars($taux) . '.<br>';
+                                echo 'Pour ' . htmlspecialchars($money) . ' euros, vous recevrez en échange : ' . htmlspecialchars($valeur_convertie) . ' ' . htmlspecialchars($devise);
+                            } else {
+                                echo 'Impossible de calculer la valeur convertie sans taux de change.';
+                            }
+                        }
                         ?>
                     </td>
                 </tr>
@@ -106,24 +125,5 @@ while($donnees = $requete->fetch()){
             
         </form>
     </section>
-    <section class="container2">
-        <h2>Taux de change</h2>
-        <ul>
-            <?php
-            // Afficher le taux de change pour quelques devises
-            if (isset($data_array['base_currency_name']) && isset($data_array['rates'])) {
-                echo "<p>Devise de base : " . htmlspecialchars($data_array['base_currency_name']) . "</p>";
-                echo "<ul>";
-                foreach ($data_array['rates'] as $currency_code => $rate_info) {
-                    echo "<li>{$currency_code}: Taux = " . htmlspecialchars($rate_info['rate']) . "</li>";
-                }
-                echo "</ul>";
-            } else {
-                echo "<p>Les données de l'API sont manquantes.</p>";
-            }
-            ?>
-        </ul>
-    </section>
-
 </body>
 </html>

@@ -1,35 +1,36 @@
 <?php
 
-//RECUPERER LES DONNEES DU FORMULAIRE
-if (isset($_POST['country']) && isset($_POST['money'])){
-    $country = $_POST['country'];
-    $money = $_POST['money'];
+// _________________________________ RECUPERER L'API _____________________________________
+
+$url = "https://currency-converter5.p.rapidapi.com/currency/convert?format=json&from=EUR&amount=1&language=fr";
+$headers = [
+    "X-RapidAPI-Host: currency-converter5.p.rapidapi.com",
+    "X-RapidAPI-Key: 6435e53cd2mshdca89a6d4ef9b2ap120334jsn2fda24fc95bf"
+];
+
+$ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
+    $data = curl_exec($ch);
+    if ($data === false) {
+        $error_message = curl_error($ch);
+        curl_close($ch);
+        die("Erreur cURL: $error_message");
+    }
+curl_close($ch);
+
+$data_array = json_decode($data, true);
+
+if (json_last_error() !== JSON_ERROR_NONE) {
+    die("Erreur de décodage JSON: " . json_last_error_msg());
 }
-echo $country;
-
-//RECUPERER LA DATABASE MYSQL
-try {$bdd = new PDO('mysql:host=localhost;dbname=thedream;charset=utf8','root', '');
-} catch (Exception $e) {
-    die('Erreur : '.$e->getMessage());
-}
 
 
-$requete = $bdd ->prepare('SELECT *
-                            FROM countries
-                            WHERE paysFr = ?');
-
-$requete -> execute(array($country));
-
-while($donnees = $requete->fetch()){
-    $devise = $donnees['codeDevise'];
-    echo '<p> La devise pour '.$country.' est la suivante : '.$devise.'</p>';
-}
-
-
-
-$data = file_get_contents('api.php');
-$result = json_decode($data, true);
-
+$country = '';
+$devise = '';
 
 // FONCTION POUR CALCULER LE TAUX
 function calculerTaux($money1,$taux){
@@ -38,11 +39,36 @@ function calculerTaux($money1,$taux){
 }
 
 
+//RECUPERER LES DONNEES DU FORMULAIRE
+if (isset($_POST['country']) && isset($_POST['money'])){
+    $country = $_POST['country'];
+    $money = $_POST['money'];
+} else {
+    $erreurEncodage = "Veuillez encoder un pays et une somme en euros";
+}
+
+//RECUPERER LA DATABASE MYSQL
+try {$bdd = new PDO('mysql:host=localhost;dbname=thedream;charset=utf8','root', '');
+} catch (Exception $e) {
+    die('Erreur : '.$e->getMessage());
+}
 
 
+//CREER LA REQUETE
 
+$requete = $bdd ->prepare('SELECT *
+                            FROM countries
+                            WHERE paysFr = ? OR paysEn = ?');
+
+$requete -> execute(array($country, $country));
+
+while($donnees = $requete->fetch()){
+    $devise = $donnees['codeDevise'];
+    // echo '<p> La devise pour '.$country.' est la suivante : '.$devise.'</p>';
+}
 
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -72,7 +98,7 @@ function calculerTaux($money1,$taux){
                     <td><button type="submit">Convertir</button></td>
                     <td>
                         <?php
-                            echo 'hello world';
+                            echo '<p> La devise pour '.$country.' est la suivante : '.$devise.'</p>';
                         ?>
                     </td>
                 </tr>
@@ -80,7 +106,24 @@ function calculerTaux($money1,$taux){
             
         </form>
     </section>
-
+    <section class="container2">
+        <h2>Taux de change</h2>
+        <ul>
+            <?php
+            // Afficher le taux de change pour quelques devises
+            if (isset($data_array['base_currency_name']) && isset($data_array['rates'])) {
+                echo "<p>Devise de base : " . htmlspecialchars($data_array['base_currency_name']) . "</p>";
+                echo "<ul>";
+                foreach ($data_array['rates'] as $currency_code => $rate_info) {
+                    echo "<li>{$currency_code}: Taux = " . htmlspecialchars($rate_info['rate']) . "</li>";
+                }
+                echo "</ul>";
+            } else {
+                echo "<p>Les données de l'API sont manquantes.</p>";
+            }
+            ?>
+        </ul>
+    </section>
 
 </body>
 </html>
